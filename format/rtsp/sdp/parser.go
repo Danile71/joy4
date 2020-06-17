@@ -62,7 +62,10 @@ func Parse(content string) (sess Session, medias []Media) {
 							val := keyval[1]
 							switch key {
 							case "control":
-								media.Control = val
+								switch val {
+								case "audio", "video":
+									media.Control = val
+								}
 							case "rtpmap":
 								media.Rtpmap, _ = strconv.Atoi(val)
 							}
