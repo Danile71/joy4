@@ -63,7 +63,7 @@ func Parse(content string) (sess Session, medias []Media) {
 							switch key {
 							case "control":
 								switch val {
-								case "audio", "video":
+								case "audio", "video", "track1":
 									media.Control = val
 								}
 								if strings.Contains(val, "trackID") {
