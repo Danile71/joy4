@@ -66,6 +66,9 @@ func Parse(content string) (sess Session, medias []Media) {
 								case "audio", "video":
 									media.Control = val
 								}
+								if strings.Contains(val, "trackID") {
+									media.Control = val
+								}
 							case "rtpmap":
 								media.Rtpmap, _ = strconv.Atoi(val)
 							}

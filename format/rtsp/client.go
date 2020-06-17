@@ -7,9 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/textproto"
 	"net/url"
 	"strconv"
@@ -37,6 +39,32 @@ const (
 	stageWaitCodecData
 	stageCodecDataDone
 )
+
+func (self *Client) SetupVideoUDP(max int) (err error) {
+	for i := 0; i < max; i++ {
+		con, err := net.ListenUDP("udp", &net.UDPAddr{IP: []byte{0, 0, 0, 0}, Port: 0})
+		if err != nil {
+			continue
+		}
+		self.udpVideoConn = append(self.udpVideoConn, con)
+
+		go func() {
+			defer con.Close()
+			buf := make([]byte, 2048)
+			for {
+				n, _, err := con.ReadFromUDP(buf)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				buffer := string(buf[0:n])
+
+				fmt.Println(len(buffer))
+			}
+		}()
+	}
+	return
+}
 
 type Client struct {
 	DebugRtsp bool
@@ -67,6 +95,8 @@ type Client struct {
 	streamsintf []av.CodecData
 	session     string
 	body        io.Reader
+
+	udpVideoConn []*net.UDPConn
 }
 
 type Request struct {
@@ -571,14 +601,26 @@ func (self *Client) ReadResponse() (res Response, err error) {
 }
 
 func (self *Client) SetupAll() (err error) {
-	idx := []int{}
 	for i := range self.streams {
-		idx = append(idx, i)
+		self.setupIdx = append(self.setupIdx, i)
 	}
-	return self.Setup(idx)
+
+	//tcp
+	err = self.SetupInterleavedMode()
+
+	if err != nil {
+		err = self.SetupVideoUDP(2)
+		if err != nil {
+			return err
+		}
+		//udp
+		return self.SetupNonInterleavedMode()
+	}
+
+	return
 }
 
-func (self *Client) Setup(idx []int) (err error) {
+func (self *Client) SetupNonInterleavedMode() (err error) {
 	if err = self.prepare(stageDescribeDone); err != nil {
 		return
 	}
@@ -587,9 +629,54 @@ func (self *Client) Setup(idx []int) (err error) {
 	for i := range self.setupMap {
 		self.setupMap[i] = -1
 	}
-	self.setupIdx = idx
 
-	for i, si := range idx {
+	for i, si := range self.setupIdx {
+		self.setupMap[si] = i
+
+		uri := ""
+		control := self.streams[si].Sdp.Control
+		if strings.HasPrefix(control, "rtsp://") {
+			uri = control
+		} else {
+			uri = self.requestUri + "/" + control
+		}
+		req := Request{Method: "SETUP", Uri: uri}
+
+		req.Header = append(req.Header, fmt.Sprintf("Transport: RTP/AVP;unicast;client_port=%d-%d", self.udpVideoConn[0].LocalAddr().(*net.UDPAddr).Port, self.udpVideoConn[0].LocalAddr().(*net.UDPAddr).Port+1))
+		if self.session != "" {
+			req.Header = append(req.Header, "Session: "+self.session)
+		}
+		fmt.Println(req)
+		if err = self.WriteRequest(req); err != nil {
+			return
+		}
+		resp, err := self.ReadResponse()
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return errors.New("Bad status")
+		}
+	}
+
+	if self.stage == stageDescribeDone {
+		self.stage = stageSetupDone
+	}
+	return
+}
+
+func (self *Client) SetupInterleavedMode() (err error) {
+	if err = self.prepare(stageDescribeDone); err != nil {
+		return
+	}
+
+	self.setupMap = make([]int, len(self.streams))
+	for i := range self.setupMap {
+		self.setupMap[i] = -1
+	}
+
+	for i, si := range self.setupIdx {
 		self.setupMap[si] = i
 
 		uri := ""
@@ -607,8 +694,13 @@ func (self *Client) Setup(idx []int) (err error) {
 		if err = self.WriteRequest(req); err != nil {
 			return
 		}
-		if _, err = self.ReadResponse(); err != nil {
-			return
+		resp, err := self.ReadResponse()
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return errors.New("Bad status")
 		}
 	}
 
