@@ -1,6 +1,7 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
+#include <libavutil/imgutils.h>
 #include <libswresample/swresample.h>
 #include <libavutil/opt.h>
 #include <string.h>
@@ -50,18 +51,6 @@ int encode(AVCodecContext *avctx, AVPacket *pkt, int *got_packet, AVFrame *frame
     return ret;
 }
 
-AVHWAccel *ff_find_hwaccel(enum AVCodecID codec_id, enum AVPixelFormat pix_fmt)
-{
-    AVHWAccel *hwaccel=NULL;
-
-    while((hwaccel= av_hwaccel_next(hwaccel))){
-        if (   hwaccel->id      == codec_id
-            && hwaccel->pix_fmt == pix_fmt)
-            return hwaccel;
-    }
-    return NULL;
-}
-
 int avcodec_encode_jpeg(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *packet) {
     AVCodec *jpegCodec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
     int ret = -1;
@@ -69,27 +58,25 @@ int avcodec_encode_jpeg(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *pac
     if (!jpegCodec) {
         return ret;
     }
-    
+
     AVCodecContext *jpegContext = avcodec_alloc_context3(jpegCodec);
     if (!jpegContext) {
         jpegCodec = NULL;
         return ret;
     }
-    
-    jpegContext->pix_fmt = jpegContext->pix_fmt == AV_PIX_FMT_NONE ?AV_PIX_FMT_YUVJ420P:jpegContext->pix_fmt;
-    jpegContext->hwaccel = ff_find_hwaccel(jpegContext->codec->id, jpegContext->pix_fmt);
+
+    jpegContext->pix_fmt = AV_PIX_FMT_YUVJ420P;
     jpegContext->height = pFrame->height;
     jpegContext->width = pFrame->width;
     jpegContext->time_base= (AVRational){1,25};
 
     ret = avcodec_open2(jpegContext, jpegCodec, NULL);
-    
     if (ret < 0) {
         goto error;
     }
     
     int gotFrame;
-    
+
     ret = encode(jpegContext, packet, &gotFrame, pFrame);
     if (ret < 0) {
         goto error;
@@ -100,5 +87,25 @@ int avcodec_encode_jpeg(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *pac
         avcodec_free_context(&jpegContext);
         jpegCodec = NULL;
     return ret;
+}
+
+
+
+int avcodec_encode_jpeg_nv12(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *packet) {
+    struct SwsContext *img_convert_ctx = sws_getCachedContext( NULL, pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pFrame->width, pFrame->height, AV_PIX_FMT_BGR24, SWS_BICUBIC, NULL, NULL, NULL );
+    AVFrame *nFrame = av_frame_alloc();
+    nFrame->format = AV_PIX_FMT_YUVJ420P;
+    nFrame->width = pFrame->width;
+    nFrame->height = pFrame->height;
+    
+    int size = av_image_get_buffer_size( AV_PIX_FMT_YUVJ420P, pFrame->width, pFrame->height, 1);
+    
+    uint8_t *tmp_picture_buf = (uint8_t *)malloc(size);    
+    
+    av_image_fill_arrays(nFrame->data, nFrame->linesize, tmp_picture_buf, AV_PIX_FMT_YUVJ420P, pFrame->width, pFrame->height, 1);
+    
+    sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, nFrame->height, nFrame->data, nFrame->linesize);        
+    
+    return avcodec_encode_jpeg(pCodecCtx,nFrame,packet);
 }
 

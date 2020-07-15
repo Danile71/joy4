@@ -90,16 +90,34 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 		packet := C.AVPacket{}
 		defer C.av_packet_unref(&packet)
 
-		cerr := C.avcodec_encode_jpeg(ff.codecCtx, frame, &packet)
+		switch int(frame.format) {
+		case 0, 12:
+			cerr := C.avcodec_encode_jpeg(ff.codecCtx, frame, &packet)
+			C.fflush(C.stdout)
 
-		if cerr != C.int(0) {
-			err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
-			return
+			if cerr != C.int(0) {
+				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
+				return
+			}
+
+			img.Size = int(packet.size)
+			img.Raw = make([]byte, img.Size)
+			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
+		case 23: //nv12
+			cerr := C.avcodec_encode_jpeg_nv12(ff.codecCtx, frame, &packet)
+			C.fflush(C.stdout)
+
+			if cerr != C.int(0) {
+				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
+				return
+			}
+
+			img.Size = int(packet.size)
+			img.Raw = make([]byte, img.Size)
+			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
+		default:
+			fmt.Println("unk pix", int(frame.format))
 		}
-
-		img.Size = int(packet.size)
-		img.Raw = make([]byte, img.Size)
-		copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
 	}
 
 	return
@@ -169,15 +187,13 @@ func NewVideoDecoder(stream av.CodecData) (dec *VideoDecoder, err error) {
 		return
 	}
 
-	c := C.avcodec_find_decoder(id)
-	if c == nil {
-		err = fmt.Errorf("ffmpeg: cannot find video decoder codecId=%d", id)
-		return
-	}
-
-	if C.avcodec_get_type(id) != C.AVMEDIA_TYPE_VIDEO {
-		err = fmt.Errorf("ffmpeg: cannot find video decoder codecId=%d type=%d", id, int(C.avcodec_get_type(id)))
-		return
+	c := C.avcodec_find_decoder_by_name(C.CString("h264_cuvid"))
+	if c == nil || C.avcodec_get_type(id) != C.AVMEDIA_TYPE_VIDEO {
+		c = C.avcodec_find_decoder(id)
+		if c == nil || C.avcodec_get_type(id) != C.AVMEDIA_TYPE_VIDEO {
+			err = fmt.Errorf("ffmpeg: cannot find video decoder codecId=%d", id)
+			return
+		}
 	}
 
 	if _dec.ff, err = newFFCtxByCodec(c); err != nil {
