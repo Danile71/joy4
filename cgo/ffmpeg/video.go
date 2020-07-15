@@ -101,7 +101,7 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 			img.Size = int(packet.size)
 			img.Raw = make([]byte, img.Size)
 			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
-		case 23: //nv12
+		default:
 			cerr := C.avcodec_encode_jpeg_nv12(ff.codecCtx, frame, &packet)
 			if cerr != C.int(0) {
 				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
@@ -111,8 +111,6 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 			img.Size = int(packet.size)
 			img.Raw = make([]byte, img.Size)
 			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
-		default:
-			fmt.Println("unk pix", int(frame.format))
 		}
 	}
 
