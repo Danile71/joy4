@@ -170,8 +170,13 @@ func NewVideoDecoder(stream av.CodecData) (dec *VideoDecoder, err error) {
 	}
 
 	c := C.avcodec_find_decoder(id)
-	if c == nil || C.avcodec_get_type(id) != C.AVMEDIA_TYPE_VIDEO {
+	if c == nil {
 		err = fmt.Errorf("ffmpeg: cannot find video decoder codecId=%d", id)
+		return
+	}
+
+	if C.avcodec_get_type(id) != C.AVMEDIA_TYPE_VIDEO {
+		err = fmt.Errorf("ffmpeg: cannot find video decoder codecId=%d type=%d", id, int(C.avcodec_get_type(id)))
 		return
 	}
 
