@@ -102,6 +102,7 @@ uint8_t *convert(AVCodecContext *pCodecCtx,AVFrame *pFrame,AVFrame *nFrame,int *
     av_image_fill_arrays(nFrame->data, nFrame->linesize, tmp_picture_buf, format, pFrame->width, pFrame->height, 1);
     
     sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, nFrame->height, nFrame->data, nFrame->linesize);   
+    sws_freeContext(img_convert_ctx);
     return tmp_picture_buf;
 }
 
