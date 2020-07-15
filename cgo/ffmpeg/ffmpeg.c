@@ -108,7 +108,9 @@ uint8_t *convert(AVCodecContext *pCodecCtx,AVFrame *pFrame,AVFrame *nFrame,int *
 
 int avcodec_encode_jpeg_nv12(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVFrame *nFrame,AVPacket *packet) {
     int size = 0;
-    convert(pCodecCtx, pFrame, nFrame, &size, AV_PIX_FMT_YUV420P);    
-    return avcodec_encode_jpeg(pCodecCtx,nFrame,packet);
+    uint8_t * data = convert(pCodecCtx, pFrame, nFrame, &size, AV_PIX_FMT_YUV420P);  
+    int ret = avcodec_encode_jpeg(pCodecCtx,nFrame,packet);
+    free(data);
+    return ret;
 }
 

@@ -45,6 +45,8 @@ func (self *VideoDecoder) DecodeMat(pkt []byte) (img gocv.Mat, err error) {
 			err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
 			return
 		}
+		defer C.free(unsafe.Pointer(cdata))
+
 		data := make([]byte, int(sz))
 		copy(data, *(*[]byte)(unsafe.Pointer(&cdata)))
 		img, err = gocv.NewMatFromBytes(h, w, gocv.MatTypeCV8UC3, data)
