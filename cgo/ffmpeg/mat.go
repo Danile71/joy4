@@ -41,7 +41,6 @@ func (self *VideoDecoder) DecodeMat(pkt []byte) (img gocv.Mat, err error) {
 		defer C.av_frame_free(&nframe)
 
 		cdata := C.avcodec_encode_to_mat(ff.codecCtx, frame, nframe, &sz)
-		C.fflush(C.stdout)
 		if cerr != C.int(0) {
 			err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
 			return

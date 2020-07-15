@@ -22,6 +22,7 @@ static inline int avcodec_profile_name_to_int(AVCodec *codec, const char *name) 
 			return p->profile;
 	return FF_PROFILE_UNKNOWN;
 }
+uint8_t *convert(AVCodecContext *pCodecCtx,AVFrame *pFrame,AVFrame *nFrame,int *size, int format);
 int encode(AVCodecContext *avctx, AVPacket *pkt, int *got_packet, AVFrame *frame);
 int decode(AVCodecContext *avctx, AVFrame *frame, uint8_t *data, int size, int *got_frame);
 int avcodec_encode_jpeg(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *packet);

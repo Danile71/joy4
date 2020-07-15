@@ -89,23 +89,26 @@ int avcodec_encode_jpeg(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *pac
     return ret;
 }
 
-
-
-int avcodec_encode_jpeg_nv12(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *packet) {
-    struct SwsContext *img_convert_ctx = sws_getCachedContext( NULL, pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pFrame->width, pFrame->height, AV_PIX_FMT_BGR24, SWS_BICUBIC, NULL, NULL, NULL );
-    AVFrame *nFrame = av_frame_alloc();
-    nFrame->format = AV_PIX_FMT_YUVJ420P;
+uint8_t *convert(AVCodecContext *pCodecCtx,AVFrame *pFrame,AVFrame *nFrame,int *size, int format) {
+    struct SwsContext *img_convert_ctx = sws_getCachedContext( NULL, pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pFrame->width, pFrame->height, format, SWS_BICUBIC, NULL, NULL, NULL );
+    nFrame->format = format;
     nFrame->width = pFrame->width;
     nFrame->height = pFrame->height;
     
-    int size = av_image_get_buffer_size( AV_PIX_FMT_YUVJ420P, pFrame->width, pFrame->height, 1);
+    *size = av_image_get_buffer_size( format, pFrame->width, pFrame->height, 1);
     
-    uint8_t *tmp_picture_buf = (uint8_t *)malloc(size);    
+    uint8_t *tmp_picture_buf = (uint8_t *)malloc(*size);    
     
-    av_image_fill_arrays(nFrame->data, nFrame->linesize, tmp_picture_buf, AV_PIX_FMT_YUVJ420P, pFrame->width, pFrame->height, 1);
+    av_image_fill_arrays(nFrame->data, nFrame->linesize, tmp_picture_buf, format, pFrame->width, pFrame->height, 1);
     
-    sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, nFrame->height, nFrame->data, nFrame->linesize);        
-    
+    sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, nFrame->height, nFrame->data, nFrame->linesize);   
+    return tmp_picture_buf;
+}
+
+int avcodec_encode_jpeg_nv12(AVCodecContext *pCodecCtx, AVFrame *pFrame,AVPacket *packet) {
+    AVFrame *nFrame = av_frame_alloc();
+    int size = 0;
+    convert(pCodecCtx, pFrame, nFrame, &size, AV_PIX_FMT_YUVJ420P);    
     return avcodec_encode_jpeg(pCodecCtx,nFrame,packet);
 }
 

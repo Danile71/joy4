@@ -93,8 +93,6 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 		switch int(frame.format) {
 		case 0, 12:
 			cerr := C.avcodec_encode_jpeg(ff.codecCtx, frame, &packet)
-			C.fflush(C.stdout)
-
 			if cerr != C.int(0) {
 				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
 				return
@@ -105,8 +103,6 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
 		case 23: //nv12
 			cerr := C.avcodec_encode_jpeg_nv12(ff.codecCtx, frame, &packet)
-			C.fflush(C.stdout)
-
 			if cerr != C.int(0) {
 				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
 				return
