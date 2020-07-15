@@ -102,7 +102,9 @@ func (self *VideoDecoder) Decode(pkt []byte) (img *VideoFrame, err error) {
 			img.Raw = make([]byte, img.Size)
 			copy(img.Raw, *(*[]byte)(unsafe.Pointer(&packet.data)))
 		default:
-			cerr := C.avcodec_encode_jpeg_nv12(ff.codecCtx, frame, &packet)
+			nframe := C.av_frame_alloc()
+			defer C.av_frame_free(&nframe)
+			cerr := C.avcodec_encode_jpeg_nv12(ff.codecCtx, frame, nframe, &packet)
 			if cerr != C.int(0) {
 				err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
 				return
