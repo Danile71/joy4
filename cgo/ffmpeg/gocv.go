@@ -21,36 +21,9 @@ import (
 )
 
 func (self *VideoDecoder) DecodeMat(pkt []byte) (img gocv.Mat, err error) {
-	ff := &self.ff.ff
-	cgotimg := C.int(0)
-	frame := C.av_frame_alloc()
-	defer C.av_frame_free(&frame)
-
-	cerr := C.decode(ff.codecCtx, frame, (*C.uchar)(unsafe.Pointer(&pkt[0])), C.int(len(pkt)), &cgotimg)
-
-	if cerr < C.int(0) {
-		err = fmt.Errorf("ffmpeg: decode failed: %d", cerr)
-		return
-	}
-
-	if cgotimg != C.int(0) {
-		w := int(frame.width)
-		h := int(frame.height)
-		sz := C.int(0)
-		nframe := C.av_frame_alloc()
-		defer C.av_frame_free(&nframe)
-
-		cdata := C.avcodec_encode_to_mat(ff.codecCtx, frame, nframe, &sz)
-		if cerr != C.int(0) {
-			err = fmt.Errorf("ffmpeg: avcodec_encode_jpeg failed: %d", cerr)
-			return
-		}
-		defer C.free(unsafe.Pointer(cdata))
-
-		data := make([]byte, int(sz))
-		copy(data, *(*[]byte)(unsafe.Pointer(&cdata)))
+	data, w, h, err := self.DecodeMatRaw(pkt)
+	if err == nil {
 		img, err = gocv.NewMatFromBytes(h, w, gocv.MatTypeCV8UC3, data)
-		return
 	}
 
 	return img, errors.New("no image")
