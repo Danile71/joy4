@@ -24,6 +24,9 @@ func (self *VideoDecoder) DecodeMat(pkt []byte) (img gocv.Mat, err error) {
 	data, w, h, err := self.DecodeMatRaw(pkt)
 	if err == nil {
 		img, err = gocv.NewMatFromBytes(h, w, gocv.MatTypeCV8UC3, data)
+		return
+	} else {
+		return
 	}
 
 	return img, errors.New("no image")
